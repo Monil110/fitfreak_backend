@@ -4,13 +4,81 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
+
+
 
 model User {
   id        String   @id @default(uuid())
   email     String   @unique
   password  String
-  firstName String?
-  lastName  String?
+
+  profile   Profile?
+  workouts  Workout[]
+  diets     Diet[]
+  schedules Schedule[]
+
+  createdAt DateTime @default(now())
+}
+
+model Profile {
+  id          String  @id @default(uuid())
+  firstName   String
+  lastName    String
+  phone       String?
+  countryCode String?
+  gender      String?
+  age         Int?
+  height      Int?
+  weight      Int?
+
+  userId      String  @unique
+  user        User    @relation(fields: [userId], references: [id])
+
+  updatedAt   DateTime @updatedAt
+}
+
+model Workout {
+  id        String   @id @default(uuid())
+  exercise  String
+  sets      Int
+  reps      Int
+  weight    Int
+  calories  Int
+  date      DateTime
+
+  userId    String
+  user      User @relation(fields: [userId], references: [id])
+
+  createdAt DateTime @default(now())
+}
+
+
+model Diet {
+  id        String   @id @default(uuid())
+  food      String
+  calories  Int
+  protein   Int
+  carbs     Int
+  fats      Int
+  time      String
+  date      DateTime
+
+  userId    String
+  user      User @relation(fields: [userId], references: [id])
+
+  createdAt DateTime @default(now())
+}
+
+model Schedule {
+  id        String   @id @default(uuid())
+  task      String
+  date      DateTime
+  time      String
+
+  userId    String
+  user      User @relation(fields: [userId], references: [id])
+
   createdAt DateTime @default(now())
 }
