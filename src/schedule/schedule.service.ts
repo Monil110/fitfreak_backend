@@ -13,15 +13,17 @@ export class ScheduleService {
     return data.map(s => ({ _id: s.id, ...s }));
   }
 
-  create(userId: string, data: any) {
-    return this.prisma.schedule.create({
-      data: {
-        ...data,
-        date: new Date(data.date),
-        userId,
-      },
-    });
-  }
+  async create(userId: string, data: any) {
+  const schedule = await this.prisma.schedule.create({
+    data: {
+      ...data,
+      date: new Date(data.date),
+      userId,
+    },
+  });
+  return { _id: schedule.id, ...schedule };
+}
+
 
   update(id: string, userId: string, data: any) {
     return this.prisma.schedule.updateMany({

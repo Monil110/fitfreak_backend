@@ -1,7 +1,7 @@
 import { Controller, Get, Post, Put, Delete, Req, Body, Param, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt.guard';
 import { WorkoutService } from './workout.service';
-
+import { CreateWorkoutDto } from './dto/create-workout.dto';
 @UseGuards(JwtAuthGuard)
 @Controller('workouts')
 export class WorkoutController {
@@ -13,9 +13,10 @@ export class WorkoutController {
   }
 
   @Post()
-  create(@Req() req, @Body() body) {
+  create(@Req() req, @Body() body: CreateWorkoutDto) {
     return this.service.create(req.user.userId, body);
   }
+
 
   @Put(':id')
   update(@Req() req, @Param('id') id, @Body() body) {

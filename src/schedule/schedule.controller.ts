@@ -1,6 +1,7 @@
 import { Controller, Get, Post, Put, Delete, Req, Body, Param, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt.guard';
 import { ScheduleService } from './schedule.service';
+import { CreateScheduleDto } from './dto/create-schedule.dto';
 
 @UseGuards(JwtAuthGuard)
 @Controller('schedule')
@@ -13,9 +14,10 @@ export class ScheduleController {
   }
 
   @Post()
-  create(@Req() req, @Body() body) {
+  create(@Req() req, @Body() body: CreateScheduleDto) {
     return this.service.create(req.user.userId, body);
   }
+
 
   @Put(':id')
   update(@Req() req, @Param('id') id, @Body() body) {

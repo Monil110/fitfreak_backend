@@ -28,12 +28,12 @@ export class AuthService {
       },
     });
 
-    const token = this.jwtService.sign({
-      sub: user.id,
-      email: user.email,
-    });
-
-    return { token };
+    return {
+      access_token: this.jwtService.sign({
+        sub: user.id,
+        email: user.email,
+      }),
+    };
   }
 
   async login(email: string, password: string) {
@@ -50,11 +50,11 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    const token = this.jwtService.sign({
-      sub: user.id,
-      email: user.email,
-    });
-
-    return { token };
+    return {
+      access_token: this.jwtService.sign({
+        sub: user.id,
+        email: user.email,
+      }),
+    };
   }
 }

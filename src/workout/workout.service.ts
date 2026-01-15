@@ -13,15 +13,17 @@ export class WorkoutService {
     return data.map(w => ({ _id: w.id, ...w }));
   }
 
-  create(userId: string, data: any) {
-    return this.prisma.workout.create({
-      data: {
-        ...data,
-        date: new Date(data.date), 
-        userId,
-      },
-    });
-  }
+  async create(userId: string, data: any) {
+  const workout = await this.prisma.workout.create({
+    data: {
+      ...data,
+      date: new Date(data.date),
+      userId,
+    },
+  });
+  return { _id: workout.id, ...workout };
+}
+
 
   update(id: string, userId: string, data: any) {
     return this.prisma.workout.updateMany({

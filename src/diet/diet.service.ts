@@ -13,15 +13,17 @@ export class DietService {
     return data.map(d => ({ _id: d.id, ...d }));
   }
 
-  create(userId: string, data: any) {
-    return this.prisma.diet.create({
-      data: {
-        ...data,
-        date: new Date(data.date),
-        userId,
-      },
-    });
-  }
+  async create(userId: string, data: any) {
+  const diet = await this.prisma.diet.create({
+    data: {
+      ...data,
+      date: new Date(data.date),
+      userId,
+    },
+  });
+  return { _id: diet.id, ...diet };
+}
+
 
   update(id: string, userId: string, data: any) {
     return this.prisma.diet.updateMany({

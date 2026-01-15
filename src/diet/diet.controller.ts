@@ -1,6 +1,7 @@
 import { Controller, Get, Post, Put, Delete, Req, Body, Param, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt.guard';
 import { DietService } from './diet.service';
+import { CreateDietDto } from './dto/create-diet.dto';
 
 @UseGuards(JwtAuthGuard)
 @Controller('diet')
@@ -13,9 +14,10 @@ export class DietController {
   }
 
   @Post()
-  create(@Req() req, @Body() body) {
+  create(@Req() req, @Body() body: CreateDietDto) {
     return this.service.create(req.user.userId, body);
   }
+
 
   @Put(':id')
   update(@Req() req, @Param('id') id, @Body() body) {
