@@ -19,6 +19,11 @@ export class AuthController {
   ) {
     return this.authService.login(email, password);
   }
+  @Post("firebase-login")
+  async firebaseLogin(@Body("token") token: string) {
+    return this.authService.firebaseLogin(token);
+  }
+
 }
 
 

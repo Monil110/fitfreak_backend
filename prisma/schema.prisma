@@ -12,16 +12,16 @@ datasource db {
 model User {
   id        String   @id @default(uuid())
   email     String   @unique
-  password  String
+  password  String?   // ✅ make nullable for firebase login
 
   profile   Profile?
   workouts  Workout[]
   diets     Diet[]
   schedules Schedule[]
 
-
   createdAt DateTime @default(now())
 }
+
 
 model Profile {
   id          String  @id @default(uuid())
