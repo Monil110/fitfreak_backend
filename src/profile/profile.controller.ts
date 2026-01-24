@@ -23,8 +23,18 @@ export class ProfileController {
   constructor(private service: ProfileService) {}
 
   @Get()
-  get(@Req() req) {
-    return this.service.get(req.user.userId);
+  getProfile(@Req() req) {
+    return this.service.getProfile(req.user.userId);
+  }
+  @Get('activity-heatmap')
+  getHeatmap(@Req() req) {
+    return this.service.getActivityHeatmap(req.user.userId);
+  }
+
+
+  @Put()
+  updateProfile(@Req() req, @Body() body) {
+    return this.service.updateProfile(req.user.userId, body);
   }
 
   @Post('upload-image')
@@ -42,28 +52,23 @@ export class ProfileController {
       }),
       fileFilter: (req, file, cb) => {
         if (!file.mimetype.startsWith('image/')) {
-          cb(new Error('Only image files allowed'), false);
+          cb(new BadRequestException('Only image files allowed'), false);
+          return;
         }
         cb(null, true);
       },
       limits: { fileSize: 2 * 1024 * 1024 },
     }),
   )
-  async uploadImage(@UploadedFile() file: Express.Multer.File, @Req() req) {
+  uploadImage(@UploadedFile() file: Express.Multer.File, @Req() req) {
     if (!file) {
       throw new BadRequestException('File not received');
     }
-
     return this.service.uploadImage(req.user.userId, file);
   }
 
   @Delete('upload-image')
   deleteImage(@Req() req) {
     return this.service.deleteImage(req.user.userId);
-  }
-
-  @Put()
-  save(@Req() req, @Body() body) {
-    return this.service.save(req.user.userId, body);
   }
 }

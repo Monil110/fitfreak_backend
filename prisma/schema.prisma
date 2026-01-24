@@ -24,21 +24,23 @@ model User {
 
 
 model Profile {
-  id          String  @id @default(uuid())
-  firstName   String?   
-  lastName    String?   
+  id          String   @id @default(uuid())
+  firstName   String?
+  lastName    String?
   phone       String?
   countryCode String?
   gender      String?
   age         Int?
   height      Int?
   weight      Int?
+  bio         String?   // ✅ ADD THIS LINE
   imageUrl    String?
-  userId      String  @unique
-  user        User    @relation(fields: [userId], references: [id])
+  userId      String   @unique
+  user        User     @relation(fields: [userId], references: [id])
 
   updatedAt   DateTime @updatedAt
 }
+
 
 
 model Workout {

@@ -1,5 +1,5 @@
-import { Injectable } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
+import { Injectable } from "@nestjs/common";
+import { PrismaService } from "../prisma/prisma.service";
 
 @Injectable()
 export class ReportsService {
@@ -87,5 +87,41 @@ export class ReportsService {
         fats: diet.reduce((a, b) => a + b.fats, 0),
       },
     };
+  }
+  async getExercises(userId: string) {
+    const exercises = await this.prisma.workout.findMany({
+      where: { userId },
+      select: { exercise: true },
+      distinct: ["exercise"],
+    });
+  
+    return exercises.map((e) => e.exercise);
+  }
+  
+
+  async exerciseProgress(
+    userId: string,
+    exercise: string,
+    metric: "weight" | "reps"
+  ) {
+    const workouts = await this.prisma.workout.findMany({
+      where: {
+        userId,
+        exercise,
+      },
+      orderBy: {
+        date: "asc",
+      },
+      select: {
+        date: true,
+        weight: true,
+        reps: true,
+      },
+    });
+
+    return workouts.map((w) => ({
+      date: w.date,
+      value: metric === "weight" ? w.weight : w.reps,
+    }));
   }
 }
