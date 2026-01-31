@@ -6,6 +6,7 @@ import {
   Delete,
   Req,
   Body,
+  Param,
   UseGuards,
   UseInterceptors,
   UploadedFile,
@@ -16,28 +17,54 @@ import { ProfileService } from './profile.service';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
+import { Query } from '@nestjs/common';
+
 
 @UseGuards(JwtAuthGuard)
-@Controller('profile')
+@Controller()
 export class ProfileController {
-  constructor(private service: ProfileService) {}
+  constructor(private service: ProfileService) { }
 
-  @Get()
+
+  // Existing: get own profile
+
+  @Get('profile')
   getProfile(@Req() req) {
-    return this.service.getProfile(req.user.userId);
+    return this.service.getProfile(req.user.sub);
   }
-  @Get('activity-heatmap')
+
+  @Get('profile/activity-heatmap')
   getHeatmap(@Req() req) {
-    return this.service.getActivityHeatmap(req.user.userId);
+    return this.service.getActivityHeatmap(req.user.sub);
   }
 
-
-  @Put()
+  @Put('profile')
   updateProfile(@Req() req, @Body() body) {
-    return this.service.updateProfile(req.user.userId, body);
+    return this.service.updateProfile(req.user.sub, body);
   }
 
-  @Post('upload-image')
+
+  // get profile by username
+
+  @Get('users/profile/:username')
+  getProfileByUsername(
+    @Param('username') username: string,
+    @Req() req,
+  ) {
+    return this.service.getProfileByUsername(username, req.user.sub);
+  }
+  //search user by username
+  @Get('users/search')
+  search(@Query('q') q: string) {
+    return this.service.searchUsers(q);
+  }
+
+
+
+
+
+  // Profile image upload
+  @Post('profile/upload-image')
   @UseInterceptors(
     FileInterceptor('file', {
       storage: diskStorage({
@@ -64,11 +91,11 @@ export class ProfileController {
     if (!file) {
       throw new BadRequestException('File not received');
     }
-    return this.service.uploadImage(req.user.userId, file);
+    return this.service.uploadImage(req.user.sub, file);
   }
 
-  @Delete('upload-image')
+  @Delete('profile/upload-image')
   deleteImage(@Req() req) {
-    return this.service.deleteImage(req.user.userId);
+    return this.service.deleteImage(req.user.sub);
   }
 }

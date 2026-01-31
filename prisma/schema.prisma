@@ -14,6 +14,7 @@ model User {
   email     String   @unique
   username  String   @unique
   password  String?
+  isPrivate Boolean  @default(false)
 
   profile   Profile?
   workouts  Workout[]
@@ -23,8 +24,25 @@ model User {
   following Follow[] @relation("Follower")
   followers Follow[] @relation("Following")
 
+  sentFollowRequests     FollowRequest[] @relation("Requester")
+  receivedFollowRequests FollowRequest[] @relation("Target")
+
   createdAt DateTime @default(now())
 }
+
+model FollowRequest {
+  id          String   @id @default(uuid())
+  requesterId String
+  targetId    String
+  createdAt   DateTime @default(now())
+
+  requester User @relation("Requester", fields: [requesterId], references: [id], onDelete: Cascade)
+  target    User @relation("Target", fields: [targetId], references: [id], onDelete: Cascade)
+
+  @@unique([requesterId, targetId])
+}
+
+
 
 
 

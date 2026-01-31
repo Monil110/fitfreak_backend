@@ -1,11 +1,11 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import cloudinary from '../config/cloudinary.config';
 import * as fs from 'fs';
 
 @Injectable()
 export class ProfileService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService) { }
 
   private isProfileComplete(profile: any) {
     return (
@@ -14,6 +14,7 @@ export class ProfileService {
       profile?.age
     );
   }
+
   async getActivityHeatmap(userId: string) {
     const workouts = await this.prisma.workout.findMany({
       where: { userId },
@@ -23,22 +24,25 @@ export class ProfileService {
         reps: true,
       },
     });
-  
+
     const heatmap: Record<string, number> = {};
-  
+
     for (const w of workouts) {
-      const day = w.date.toISOString().split("T")[0];
-  
+      const day = w.date.toISOString().split('T')[0];
+
       if (!heatmap[day]) {
         heatmap[day] = 0;
       }
-  
+
       heatmap[day] += w.sets * w.reps;
     }
-  
+
     return heatmap;
   }
-  
+
+  // =========================
+  // EXISTING: profile by userId
+  // =========================
   async getProfile(userId: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -47,31 +51,33 @@ export class ProfileService {
         workouts: true,
       },
     });
-  
+
     if (!user) {
       return null;
     }
-  
-    const profileComplete = Boolean(
-      user.profile?.firstName &&
-      user.profile?.lastName &&
-      user.profile?.age
-    );
-  
-    const followers = 1234;
-    const following = 567;
-  
+
+    const profileComplete = this.isProfileComplete(user.profile);
+
+    const [followers, following] = await Promise.all([
+      this.prisma.follow.count({
+        where: { followingId: user.id },
+      }),
+      this.prisma.follow.count({
+        where: { followerId: user.id },
+      }),
+    ]);
+
     return {
       email: user.email,
-      firstName: user.profile?.firstName ?? "",
-      lastName: user.profile?.lastName ?? "",
-      countryCode: user.profile?.countryCode ?? "+1",
-      phone: user.profile?.phone ?? "",
-      gender: user.profile?.gender ?? "",
+      firstName: user.profile?.firstName ?? '',
+      lastName: user.profile?.lastName ?? '',
+      countryCode: user.profile?.countryCode ?? '+1',
+      phone: user.profile?.phone ?? '',
+      gender: user.profile?.gender ?? '',
       age: user.profile?.age ?? null,
       height: user.profile?.height ?? null,
       weight: user.profile?.weight ?? null,
-      bio: user.profile?.bio ?? "",
+      bio: user.profile?.bio ?? '',
       imageUrl: user.profile?.imageUrl ?? null,
       profileComplete,
       socialStats: {
@@ -82,8 +88,65 @@ export class ProfileService {
     };
   }
 
+  // =========================
+  // NEW: profile by username (STEP 9)
+  // =========================
+  async getProfileByUsername(username: string, viewerId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { username },
+      include: {
+        profile: true,
+        workouts: true,
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    const profileComplete = this.isProfileComplete(user.profile);
+
+    const [followers, following, isFollowing] = await Promise.all([
+      this.prisma.follow.count({
+        where: { followingId: user.id },
+      }),
+      this.prisma.follow.count({
+        where: { followerId: user.id },
+      }),
+      this.prisma.follow.findUnique({
+        where: {
+          followerId_followingId: {
+            followerId: viewerId,
+            followingId: user.id,
+          },
+        },
+      }),
+    ]);
+
+    return {
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      firstName: user.profile?.firstName ?? '',
+      lastName: user.profile?.lastName ?? '',
+      gender: user.profile?.gender ?? '',
+      age: user.profile?.age ?? null,
+      height: user.profile?.height ?? null,
+      weight: user.profile?.weight ?? null,
+      bio: user.profile?.bio ?? '',
+      imageUrl: user.profile?.imageUrl ?? null,
+      createdAt: user.createdAt,
+      profileComplete,
+      socialStats: {
+        posts: user.workouts.length,
+        followers,
+        following,
+      },
+      isFollowing: !!isFollowing,
+    };
+  }
+
   async updateProfile(userId: string, data: any) {
-    // Remove email if it's in the data (email shouldn't be updated here)
     if ('email' in data) {
       delete data.email;
     }
@@ -94,9 +157,35 @@ export class ProfileService {
       create: { ...data, userId },
     });
   }
+  async searchUsers(query: string) {
+    if (!query || query.trim().length < 2) {
+      return [];
+    }
+
+    return this.prisma.user.findMany({
+      where: {
+        username: {
+          contains: query.toLowerCase(),
+          mode: 'insensitive',
+        },
+      },
+      select: {
+        id: true,
+        username: true,
+        profile: {
+          select: {
+            firstName: true,
+            lastName: true,
+            imageUrl: true,
+          },
+        },
+      },
+      take: 10,
+    });
+  }
+
 
   async uploadImage(userId: string, file: Express.Multer.File) {
-    // Check if user already has a profile image and delete it from Cloudinary
     const profile = await this.prisma.profile.findUnique({
       where: { userId },
     });
@@ -106,25 +195,18 @@ export class ProfileService {
       if (publicId) {
         try {
           await cloudinary.uploader.destroy(publicId);
-        } catch (error) {
-          console.error('Failed to delete old Cloudinary image:', error);
-        }
+        } catch { }
       }
     }
 
-    // Upload new image to Cloudinary
     const uploaded = await cloudinary.uploader.upload(file.path, {
       folder: 'fitfreak/profiles',
     });
 
-    // Delete local file after upload
     try {
       fs.unlinkSync(file.path);
-    } catch (error) {
-      console.error('Failed to delete local file:', error);
-    }
+    } catch { }
 
-    // Update profile with new image URL
     const updatedProfile = await this.prisma.profile.upsert({
       where: { userId },
       update: {
@@ -150,17 +232,13 @@ export class ProfileService {
       return { message: 'No image to delete' };
     }
 
-    // Delete image from Cloudinary
     const publicId = this.extractPublicId(profile.imageUrl);
     if (publicId) {
       try {
         await cloudinary.uploader.destroy(publicId);
-      } catch (error) {
-        console.error('Failed to delete Cloudinary image:', error);
-      }
+      } catch { }
     }
 
-    // Remove image URL from database
     await this.prisma.profile.update({
       where: { userId },
       data: {
@@ -171,14 +249,14 @@ export class ProfileService {
     return { message: 'Image deleted successfully' };
   }
 
+
   private extractPublicId(imageUrl: string): string | null {
     try {
       const parts = imageUrl.split('/');
       const filename = parts[parts.length - 1];
       const folder = parts[parts.length - 2];
-      const publicId = `${folder}/${filename.split('.')[0]}`;
-      return publicId;
-    } catch (error) {
+      return `${folder}/${filename.split('.')[0]}`;
+    } catch {
       return null;
     }
   }

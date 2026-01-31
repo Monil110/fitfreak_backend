@@ -5,77 +5,130 @@ import { PrismaService } from '../prisma/prisma.service';
 export class FollowService {
     constructor(private prisma: PrismaService) { }
 
+    // =========================
+    // FOLLOW USER
+    // =========================
     async followUser(followerId: string, followingUsername: string) {
-        const followingUser = await this.prisma.user.findUnique({
+        const target = await this.prisma.user.findUnique({
             where: { username: followingUsername },
         });
 
-        if (!followingUser) {
+        if (!target) {
             throw new NotFoundException('User not found');
         }
 
-        if (followingUser.id === followerId) {
+        if (target.id === followerId) {
             throw new BadRequestException('Cannot follow yourself');
         }
 
-        const exists = await this.prisma.follow.findUnique({
+        // already following?
+        const alreadyFollowing = await this.prisma.follow.findUnique({
             where: {
                 followerId_followingId: {
                     followerId,
-                    followingId: followingUser.id,
+                    followingId: target.id,
                 },
             },
         });
 
-        if (exists) {
+        if (alreadyFollowing) {
             throw new BadRequestException('Already following');
         }
 
-        return this.prisma.follow.create({
+        // PRIVATE ACCOUNT → FOLLOW REQUEST
+        if (target.isPrivate) {
+            const existingRequest = await this.prisma.followRequest.findUnique({
+                where: {
+                    requesterId_targetId: {
+                        requesterId: followerId,
+                        targetId: target.id,
+                    },
+                },
+            });
+
+            if (existingRequest) {
+                throw new BadRequestException('Follow request already sent');
+            }
+
+            await this.prisma.followRequest.create({
+                data: {
+                    requesterId: followerId,
+                    targetId: target.id,
+                },
+            });
+
+            return { requested: true };
+        }
+
+        // PUBLIC ACCOUNT → FOLLOW DIRECTLY
+        await this.prisma.follow.create({
             data: {
                 followerId,
-                followingId: followingUser.id,
+                followingId: target.id,
             },
         });
+
+        return { following: true };
     }
 
+    // =========================
+    // UNFOLLOW USER
+    // =========================
     async unfollowUser(followerId: string, followingUsername: string) {
-        const followingUser = await this.prisma.user.findUnique({
+        const target = await this.prisma.user.findUnique({
             where: { username: followingUsername },
         });
 
-        if (!followingUser) {
+        if (!target) {
             throw new NotFoundException('User not found');
         }
 
+        // delete follow if exists
         const follow = await this.prisma.follow.findUnique({
             where: {
                 followerId_followingId: {
                     followerId,
-                    followingId: followingUser.id,
+                    followingId: target.id,
                 },
             },
         });
 
-        if (!follow) {
-            throw new BadRequestException('Not following this user');
+        if (follow) {
+            await this.prisma.follow.delete({
+                where: { id: follow.id },
+            });
+
+            return { unfollowed: true };
         }
 
-        await this.prisma.follow.delete({
+        // also delete pending follow request (important edge case)
+        const request = await this.prisma.followRequest.findUnique({
             where: {
-                id: follow.id,
+                requesterId_targetId: {
+                    requesterId: followerId,
+                    targetId: target.id,
+                },
             },
         });
 
-        return { success: true };
+        if (request) {
+            await this.prisma.followRequest.delete({
+                where: { id: request.id },
+            });
+
+            return { requestCancelled: true };
+        }
+
+        throw new BadRequestException('Not following this user');
     }
 
+    // CHECK FOLLOW STATUS
     async isFollowing(followerId: string, followingUsername: string) {
-        const followingUser = await this.prisma.user.findUnique({
+        const target = await this.prisma.user.findUnique({
             where: { username: followingUsername },
         });
 
-        if (!followingUser) {
+        if (!target) {
             return false;
         }
 
@@ -83,13 +136,15 @@ export class FollowService {
             where: {
                 followerId_followingId: {
                     followerId,
-                    followingId: followingUser.id,
+                    followingId: target.id,
                 },
             },
         });
 
         return !!follow;
     }
+
+    // GET FOLLOWERS LIST
     async getFollowers(username: string) {
         const user = await this.prisma.user.findUnique({
             where: { username },
@@ -117,6 +172,7 @@ export class FollowService {
         return followers.map(f => f.follower);
     }
 
+    // GET FOLLOWING LIST
     async getFollowing(username: string) {
         const user = await this.prisma.user.findUnique({
             where: { username },
@@ -143,6 +199,8 @@ export class FollowService {
 
         return following.map(f => f.following);
     }
+
+    // GET FOLLOW COUNTS
     async getFollowCounts(username: string) {
         const user = await this.prisma.user.findUnique({
             where: { username },
@@ -166,6 +224,81 @@ export class FollowService {
             following,
         };
     }
+    // =========================
+    // LIST INCOMING FOLLOW REQUESTS
+    // =========================
+    async getFollowRequests(userId: string) {
+        return this.prisma.followRequest.findMany({
+            where: {
+                targetId: userId,
+            },
+            include: {
+                requester: {
+                    select: {
+                        id: true,
+                        username: true,
+                        email: true,
+                        profile: {
+                            select: {
+                                imageUrl: true,
+                                firstName: true,
+                                lastName: true,
+                            },
+                        },
+                    },
+                },
+            },
+            orderBy: {
+                createdAt: 'desc',
+            },
+        });
+    }
 
+    // =========================
+    // ACCEPT FOLLOW REQUEST
+    // =========================
+    async acceptFollowRequest(userId: string, requestId: string) {
+        const request = await this.prisma.followRequest.findUnique({
+            where: { id: requestId },
+        });
+
+        if (!request || request.targetId !== userId) {
+            throw new BadRequestException('Invalid follow request');
+        }
+
+        // create follow
+        await this.prisma.follow.create({
+            data: {
+                followerId: request.requesterId,
+                followingId: request.targetId,
+            },
+        });
+
+        // delete request
+        await this.prisma.followRequest.delete({
+            where: { id: requestId },
+        });
+
+        return { accepted: true };
+    }
+
+    // =========================
+    // REJECT FOLLOW REQUEST
+    // =========================
+    async rejectFollowRequest(userId: string, requestId: string) {
+        const request = await this.prisma.followRequest.findUnique({
+            where: { id: requestId },
+        });
+
+        if (!request || request.targetId !== userId) {
+            throw new BadRequestException('Invalid follow request');
+        }
+
+        await this.prisma.followRequest.delete({
+            where: { id: requestId },
+        });
+
+        return { rejected: true };
+    }
 
 }

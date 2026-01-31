@@ -36,6 +36,26 @@ export class FollowController {
     async counts(@Param('username') username: string) {
         return this.followService.getFollowCounts(username);
     }
+    @Get('requests')
+    getRequests(@Req() req: any) {
+        return this.followService.getFollowRequests(req.user.sub);
+    }
+
+    @Post('requests/:id/accept')
+    acceptRequest(
+        @Param('id') id: string,
+        @Req() req: any,
+    ) {
+        return this.followService.acceptFollowRequest(req.user.sub, id);
+    }
+
+    @Delete('requests/:id')
+    rejectRequest(
+        @Param('id') id: string,
+        @Req() req: any,
+    ) {
+        return this.followService.rejectFollowRequest(req.user.sub, id);
+    }
 
 
     @Get('status/:username')
